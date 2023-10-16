@@ -1,0 +1,64 @@
+<html>
+  <div>
+    <h1>Gopher's Chat App</h1>
+    <p>Available commands for todo app</p>
+    <p>- add [task]</p>
+    <p>- done [task]</p>
+    <input id="input" type="text" size="40" />
+    <button onclick="send()">Send</button>
+    <pre id="output"></pre>
+  </div>
+  <style>
+    html {
+      text-align: center;
+      font-size: 16px;
+    }
+    div {
+      padding: 1rem;
+    }
+    #input {
+      font-size: 16px;
+    }
+    p {
+      font-size: 16px;
+    }
+  </style>
+  <script>
+    var input = document.getElementById("input");
+    var output = document.getElementById("output");
+    var socket = new WebSocket("ws://localhost:8080/main");
+
+    socket.onopen = function () {
+      output.innerHTML += "Status: Connected\n";
+    };
+
+    socket.onmessage = function (e) {
+      console.log(e);
+      output.innerHTML += "\nUser: " + e.data + "\n";
+    };
+
+    const messagesFromHTTP = fetch("/database/get-chat-messages/42")
+      .then((response) => {
+        if (!response.ok) {
+          console.error(`HTTP Status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then((data) => {
+        console.log(data);
+        console.log("MESSAGE: ", data);
+        for (let i = 0; i < data.Messages.length; i++) {
+          let message = data.Messages[i].Message;
+          output.innerHTML += "\nUser: " + message + "\n";
+        }
+      })
+      .catch((error) => {
+        console.error("There was a problem with the fetch operation:", error);
+      });
+
+    function send() {
+      socket.send(input.value);
+      input.value = "";
+    }
+  </script>
+</html>
