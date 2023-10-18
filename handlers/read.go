@@ -1,17 +1,18 @@
 package handlers
 
 import (
-	"context"
+	"encoding/json"
+	"strings"
+
 	//"encoding/json"
 	"fmt"
 	//"net/http"
 	"sync"
 
 	"github.com/RealHenryMartinez/ChatApp.git/database"
-	"go.mongodb.org/mongo-driver/bson"
 )
 
-var muter = sync.RWMutex{}
+var muter = sync.RWMutex{} // Be able to read the messages sent to the users
 
 // Read incoming client messages from frontend to server to clients
 func (c *Client) ReadMessages() {
@@ -25,56 +26,62 @@ func (c *Client) ReadMessages() {
 
 	for {
 		// Return message as bytes
-		_, message, err := c.conn.ReadMessage()
 
-		if err != nil {
-			fmt.Println(err)
-			break
-		}
-		fmt.Println("READING MESSAGE", string(message))
+		_, message, _ := c.conn.ReadMessage()
+		var requestType database.Request
 
-		// Creating a message for the database
-
-		// err = json.NewDecoder(r.Body).Decode(&chatMessage)
-		// if err != nil {
-		// 	//http.Error(w, err.Error(), http.StatusBadRequest)
-		// 	return
-		// }
-
-		// Specify the room number for the chat message
-		roomNumber := "42" // Set to the desired room number
-
-		// Create a filter to identify the document to update
-		filter := bson.M{"room_number": roomNumber}
-
-		// Create the chat message to be added
-		chatMessage := &database.ChatDocument{
-			Message: string(message),
-		}
-
-		// Create an update with the $push operator
-		update := bson.M{
-			"$push": bson.M{
-				"messages": chatMessage,
-			},
-		}
-
-		// Perform the update operation
-		updateResult, err := database.ChatCollection.UpdateOne(context.Background(), filter, update)
-		if err != nil {
-			// Handle the error
-			// You can choose to return an error response, log the error, or perform other error handling as needed.
-			// http.Error(w, err.Error(), http.StatusInternalServerError)
+		// Message received changed to json to the writer
+		if err := json.Unmarshal(message, &requestType); err != nil {
 			return
 		}
 
-		// The update was successful
-		fmt.Printf("Matched %v document(s) and modified %v document(s)\n", updateResult.MatchedCount, updateResult.ModifiedCount)
+		fmt.Println("READING MESSAGE", string(message))
 
-		// Send the message to the clients
-		for wsClient := range c.manager.clients {
-			fmt.Println("SENDING MESSAGE", string(message))
-			wsClient.dataTransfer <- message // Send the message UTF-8 Data to client
+		if strings.Compare(requestType.Type, "delete") == 0 {
+
+		} else if strings.Compare(requestType.Type, "create_chat") == 0 {
+			// Our Chat App
+			var content database.ChatRoomLog
+
+			// Out Chat room map containing keys for fields and any value accepted
+			if contentMap, ok := requestType.Content.(map[string]interface{}); ok {
+
+				// Our field that content-map accepts
+				messagesInterface, _ := contentMap["messages"].([]interface{})
+
+				// Making our field messages field of a slice of chat documents
+				messages := make([]database.ChatDocument, len(messagesInterface))
+
+				// Type assertion succeeded for a map
+				content = database.ChatRoomLog{
+					Messages:   messages,
+					RoomNumber: uint32(contentMap["room_number"].(float64)),
+				}
+			}
+
+			// Create a document in our database of a chat room
+			database.CreateOne(database.ChatCollection, content)
+
+			ConvertToJSONAndSendToAll(content, c)
+		} else {
+			var content database.ChatDocument
+
+			/*
+					1. Converting the Content to a map of strings for fields from chat document
+				 	2. We convert the fields to the appropriate field types from chat document
+			*/
+			if contentMap, ok := requestType.Content.(map[string]interface{}); ok {
+				// Type assertion succeeded for a map
+				content = database.ChatDocument{
+					Message:    contentMap["message"].(string),              // Type assertion for string
+					RoomNumber: uint32(contentMap["room_number"].(float64)), // Type assertion for uint32
+					Uid:        contentMap["uid"].(string),                  // Type assertion for string
+				}
+			}
+			// Turn the request content of any type into a database.ChatDocument type
+			handleAddObjectToSliceOnDB(c, content, content.RoomNumber, "room_number", "messages", database.ChatCollection)
+
+			ConvertToJSONAndSendToAll(content, c)
 		}
 	}
 

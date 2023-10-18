@@ -15,7 +15,7 @@ func (c *Client)WriteMessage() {
 		//mt, message, _ := c.conn.ReadMessage()
 		message := <-c.dataTransfer // Pop received message | Only receives the message bytes | 
 
-		// Write a message to send to clients
+		// Write a message to send to client that got called from read()
 		err := c.conn.WriteMessage(websocket.TextMessage, message)
 		if err != nil {
 			fmt.Println("Error writing message:", err)
@@ -24,7 +24,5 @@ func (c *Client)WriteMessage() {
 		//defer muter.Unlock()
 
 	}
-	
-
 }
 
