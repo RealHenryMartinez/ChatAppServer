@@ -3,6 +3,7 @@ package database
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	"net/http"
 
@@ -14,14 +15,13 @@ import (
 func RetrieveChatMessagesHandler(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	chatRoom := params["room_number"]
-	data, err := RetrieveChatMessagesHelper(chatRoom)
+	data, err := RetrieveChatMessagesHelper(chatRoom) // Get the chat messages 
 
-	fmt.Println("data: ", data)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-
+	
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
@@ -34,19 +34,14 @@ func RetrieveChatMessagesHandler(w http.ResponseWriter, r *http.Request) {
 
 // RetrieveChatMessages retrieves chat messages for a specific chat room and returns them as a string.
 func RetrieveChatMessagesHelper(chatRoom string) (ChatRoomLog, error) {
+	i, _ := strconv.Atoi(chatRoom) // Convert to int for compatibility with database filter key
 
 	// Access the desired database and collection.
-
-	result, err := GetByFilter[ChatRoomLog](ChatCollection, bson.M{"room_number": string(chatRoom)})
+	result, err := GetByFilter[ChatRoomLog](ChatCollection, bson.M{"room_number": uint32(i)})
 
 	if err != nil {
 		fmt.Println("Room not found: " + chatRoom)
 	}
-	// Create a string containing the chat messages.
-	// var chatLog string
-	// for _, message := range result.Messages {
-	// 	chatLog += message.Message + "\n"
-	// }
 
 	return result, nil
 }

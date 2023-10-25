@@ -25,6 +25,9 @@ func handleAddObjectToSliceOnDB[T database.ChatDocument | interface{}, G uint32 
 	// Create the chat message to be added
 	filter := bson.M{filterKey: filterBy}
 
+	fmt.Println("Filter: ", filterBy)
+	fmt.Println("Content: ", content)
+
 	// Create an update with the $push operator
 	update := bson.M{
 		"$push": bson.M{
